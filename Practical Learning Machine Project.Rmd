@@ -1,0 +1,116 @@
+---
+title: "Predict different Activity"
+author: "Sunaina"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  word_document: default
+---
+
+## Introduction
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+The goal of this project is to predict the manner in which they did the exercise. This is the `classe` variable in the training set.
+
+
+## Data Source
+The training data for this project are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv]
+
+The test data are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv]
+
+The data for this project come from this source: [http://groupware.les.inf.puc-rio.br/har]. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Data description
+The outcome variable is `classe`, a factor variable with 5 levels. For this data set, participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in 5 different fashions:
+
+- exactly according to the specification (Class A)
+- throwing the elbows to the front (Class B)
+- lifting the dumbbell only halfway (Class C)
+- lowering the dumbbell only halfway (Class D)
+- throwing the hips to the front (Class E)
+```{r, echo=FALSE}
+knitr::opts_chunk$set(error = TRUE)
+```
+```{r}
+library("knitr")
+knit2html("file")
+```
+##Loading packages
+```{r,echo=TRUE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+```
+## Loading datasets
+```{r,echo=TRUE,results='hide'}
+training.url  <-'http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv'
+testing.url <- 'http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv'
+init_train_data <- read.csv(url(training.url))
+init_test_data <- read.csv(url(testing.url))
+dim(init_train_data)
+dim(init_test_data)
+```
+## Cleaning data
+```{r,echo=TRUE,cache=TRUE}
+#Removing variables having zero variance
+non_ZeroVar1 <- nearZeroVar(init_train_data)
+org_train_data <-init_train_data[,-non_ZeroVar1]
+org_test_data <- init_test_data[, -non_ZeroVar1]
+ dim(org_train_data)
+ na_val_col <- sapply(org_train_data, function(x)mean(is.na(x)))
+ org_train_data <- org_train_data[,na_val_col== FALSE]
+ org_test_data <- org_test_data[, na_val_col== FALSE]
+ dim(org_train_data)
+ #subset data
+ training <- org_train_data[,-c(1:7)]
+ testing <- org_test_data[, -c(1:7)]
+```
+
+## Cross-validation
+```{r,echo=TRUE,results='hide'}
+inTrain <- createDataPartition(training$classe, p= 0.75,list = FALSE)
+sub_train <- training[inTrain,]
+sub_test <- training[-inTrain,]
+dim(sub_train)
+```
+## Ptrediction Model 1-Decision Tree Model
+```{r, echo=TRUE,message=FALSE,error=FALSE,warning=FALSE}
+# Fitting model
+DT_modFit <- train(classe ~., data = sub_train, method= "rpart")
+# Performing Prediction
+predictDT <- predict(DT_modFit, sub_test)
+
+confusionMatrix(predictDT,factor(sub_test$classe))
+rpart.plot(DT_modFit$finalModel, roundint= FALSE)
+```
+
+The prediction accuracy by DT model is 48% which is not upto the required level
+
+## Prediction Model2- Random Forest
+```{r, echo= TRUE,cache=TRUE}
+# Fitting model
+RF_modFit <- randomForest(as.factor(classe)~.,data = sub_train,method="class",ntree=100)
+# Predicting model
+predictRF <- predict(RF_modFit,sub_test)
+RF_conf_matric<- confusionMatrix(predictRF,factor(sub_test$classe))
+RF_conf_matric
+plot(RF_conf_matric$table, col=RF_conf_matric$byClass,main=paste("Random Forest- Accuracy level=",round(RF_conf_matric$overall['Accuracy'],4)))
+```
+
+The prediction matrix in RF model is 99 % which is considered good.
+
+## Conclusion
+
+The confusion matrices show, that the Random Forest algorithm performens better than decision trees. The accuracy for the Random Forest model was 0.995 (95% CI: (0.993, 0.997)) compared to 0.487 (95% CI: (0.473, 0.501)) for Decision Tree model. The Random Forest model is chosen.
+
+##Final Prediction
+```{r,echo=TRUE}
+final_pred <-predict(RF_modFit,testing)
+final_pred
+```
+This is the final predicted model on test data.
